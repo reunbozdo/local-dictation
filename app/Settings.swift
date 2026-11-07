@@ -164,7 +164,7 @@ struct GeneralView: View {
 
 struct ModelsView: View {
     @ObservedObject private var store = ModelStore.shared
-    @AppStorage("language") private var language = "auto"
+    @AppStorage("language") private var language = Pref.defaultLanguage
     @State private var confirmDelete: ModelInfo?
 
     private var groups: [(title: String, models: [ModelInfo])] {
@@ -189,7 +189,7 @@ struct ModelsView: View {
                 }
                 Text(language == "auto"
                      ? "Auto-detect works, but naming your language is faster and avoids mistakes on short phrases."
-                     : "Models are ranked for \(languageName(language)). Words in other languages inside your speech are still recognised by Whisper.")
+                     : "Models are ranked for \(languageName(language)). Speak \(languageName(language)): Whisper translates speech in other languages into it instead of transcribing. English terms inside your speech are fine.")
                     .font(.callout).foregroundStyle(.secondary)
             } header: { Text("Language") } footer: {
                 Text("Everything runs on this Mac; audio is never uploaded. Models are downloaded once from Hugging Face.")

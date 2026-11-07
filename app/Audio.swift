@@ -84,12 +84,22 @@ func check(_ status: OSStatus, _ call: String) throws { if status != noErr { thr
 final class Recorder {
     private var queue: AudioQueueRef?
     private var samples: [Float] = []
+    private var lastRMS: Float = 0
     private let lock = NSLock()
+
+    /// Loudness of the latest 50 ms buffer for the HUD meter, 0...1. Any thread.
+    /// dB scale from the room's noise floor (-55 dB) to loud speech (-20 dB); the square root
+    /// lifts quiet speech so the bars visibly move even when talking softly or far from the mic.
+    var level: Float {
+        lock.lock(); defer { lock.unlock() }
+        guard lastRMS > 0 else { return 0 }
+        return max(0, min(1, (20 * log10(lastRMS) + 55) / 35)).squareRoot()
+    }
 
     /// uid nil = system input.
     func start(uid: String?) throws {
         _ = stop()
-        lock.lock(); samples.removeAll(keepingCapacity: true); lock.unlock()
+        lock.lock(); samples.removeAll(keepingCapacity: true); lastRMS = 0; lock.unlock()
         var fmt = AudioStreamBasicDescription(mSampleRate: 16000, mFormatID: kAudioFormatLinearPCM,
                                               mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
                                               mBytesPerPacket: 4, mFramesPerPacket: 1, mBytesPerFrame: 4,
@@ -100,7 +110,9 @@ final class Recorder {
             let me = Unmanaged<Recorder>.fromOpaque(user!).takeUnretainedValue()
             let n = Int(buf.pointee.mAudioDataByteSize) / 4
             let ptr = buf.pointee.mAudioData.assumingMemoryBound(to: Float.self)
-            me.lock.lock(); me.samples.append(contentsOf: UnsafeBufferPointer(start: ptr, count: n)); me.lock.unlock()
+            let chunk = UnsafeBufferPointer(start: ptr, count: n)
+            let rms = n > 0 ? (chunk.reduce(0) { $0 + $1 * $1 } / Float(n)).squareRoot() : 0
+            me.lock.lock(); me.samples.append(contentsOf: chunk); me.lastRMS = rms; me.lock.unlock()
             AudioQueueEnqueueBuffer(q, buf, 0, nil)  // fails harmlessly once the queue is stopped
         }, Unmanaged.passUnretained(self).toOpaque(), nil, nil, 0, &q), "AudioQueueNewInput")
         guard let q else { throw AudioError(call: "AudioQueueNewInput", status: -1) }

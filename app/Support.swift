@@ -80,7 +80,8 @@ enum Pref {
     static let d = UserDefaults.standard
     static let defaultModel = "whisper-large-v3-turbo"
     static var hotkey: Hotkey { Hotkey(rawValue: d.string(forKey: "hotkey") ?? "") ?? .rightOption }
-    static var language: String { d.string(forKey: "language") ?? "auto" }
+    static var language: String { d.string(forKey: "language") ?? defaultLanguage }
+    static let defaultLanguage = "en"
     static var model: String {
         get { d.string(forKey: "model") ?? defaultModel }
         set { d.set(newValue, forKey: "model") }

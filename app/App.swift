@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var hintLine: NSMenuItem!
     var micItem: NSMenuItem!
     var axItem: NSMenuItem!
+    var modelItem: NSMenuItem!
     let recorder = Recorder()
     let hud = HUD()
     let models = ModelStore.shared
@@ -23,6 +24,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var quitting = false
     var ready: String?  // "Ready · <model>" once the server answers /health
     var monitors: [Any] = []
+    var axOverride: Bool?  // --demo only: pretend Accessibility is granted or missing
+    var axTrusted: Bool { axOverride ?? AXIsProcessTrusted() }
+    var demoNoModel = false  // --demo only: pretend no model is installed
 
     static func main() {
         let app = NSApplication.shared
@@ -35,6 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
         prepareSupportFiles()
         if CommandLine.arguments.contains("--probe-mic") { probeMic(); return }
+        if CommandLine.arguments.contains("--probe-hud") { probeMic(seconds: 4, hud: true); return }
+        if let i = CommandLine.arguments.firstIndex(of: "--demo") {
+            demo(CommandLine.arguments.dropFirst(i + 1).first ?? ""); return
+        }
         if CommandLine.arguments.contains("--check-access") {  // no prompt, no server: for checking a fresh build
             log("check-access: accessibility trusted: \(AXIsProcessTrusted()), post events: \(CGPreflightPostEventAccess())")
             exit(0)
@@ -83,15 +91,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // `--probe-mic`: record 1 s from the chosen mic, log device, samples and peak, exit.
+    // `--probe-hud`: the same for 4 s with the recording HUD on screen (to see the level meter).
     // Checks recording without the hotkey, the server or pasting anything.
-    func probeMic() {
+    func probeMic(seconds: Double = 1, hud showHUD: Bool = false) {
+        if showHUD { hud.showRecording { [recorder] in recorder.level } }
         let pick = resolveInput()
         log("probe: pref=\(inputPref), mic access=\(AVCaptureDevice.authorizationStatus(for: .audio).rawValue)")
         log("probe: inputs: " + inputDevices().map { "\($0.name) [\($0.uid)]" }.joined(separator: ", ") + "; system input: \(systemInputName())")
         audio.async {
             do {
                 try self.recorder.start(uid: pick.device?.uid)
-                Thread.sleep(forTimeInterval: 1)
+                Thread.sleep(forTimeInterval: seconds)
                 let s = self.recorder.stop()
                 log(String(format: "probe: record from: %@, %d samples, peak %.4f", describe(pick), s.count, s.map { abs($0) }.max() ?? 0))
                 exit(0)
@@ -135,14 +145,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func begin() {
         guard !recording else { return }
         guard ready != nil else {  // nothing to transcribe with: say why instead of recording into the void
-            flash(models.activeInstalled ? "Model is loading…" : "No model: open Local Dictation Settings", 2)
+            flash(models.activeInstalled ? .loading : .noModel)
             return
         }
         cancelled = false
         pressedAt = Date()
         recording = true
         setIcon("mic.fill", "Recording…", tint: .systemRed)
-        hud.show("● Recording", color: .systemRed)
+        hud.showRecording { [recorder] in recorder.level }
         let started = onAudio({ () -> (note: String?, error: Error?) in
             let pick = resolveInput()
             do {
@@ -155,7 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 do {
                     try self.recorder.start(uid: nil)
                     log("record from: system input \(systemInputName()) (after error)")
-                    return ("● Recording · \(pick.device?.name ?? "mic") failed, using system input", nil)
+                    return ("Recording from system input: \(pick.device?.name ?? "chosen mic") failed", nil)
                 } catch {
                     log("record failed on system input: \(error.localizedDescription)")
                     return (nil, error)
@@ -165,16 +175,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let e = r.error {
                 self.recording = false
                 self.setIcon("exclamationmark.triangle", "Microphone: \(e.localizedDescription)")
-                self.flash("Microphone doesn't work", 3)
+                self.flash(.micFailed)
             } else if let note = r.note, self.recording {
-                self.hud.show(note, color: .systemRed)
+                self.stateLine.title = note  // the meter stays: recording works, just from another mic
             }
         }
         if !started {
             log("record refused: audio queue busy for \(Int(Date().timeIntervalSince(audioProgress)))s")
             recording = false
             setIcon("exclamationmark.triangle", "Microphone not responding: restart Local Dictation")
-            flash("Microphone not responding", 3)
+            flash(.micStuck)
         }
     }
 
@@ -190,12 +200,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// HUD message that stays up for `seconds` even if the state goes idle meanwhile.
+    /// HUD notice that stays up for its duration even if the state goes idle meanwhile.
     var hudUntil = Date.distantPast
-    func flash(_ text: String, _ seconds: Double, color: NSColor = .systemOrange) {
-        hud.show(text, color: color)
-        hudUntil = Date() + seconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { self.setIdle() }
+    func flash(_ n: Notice) {
+        n.show(on: hud)
+        hudUntil = Date() + n.seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + n.seconds) { self.setIdle() }
     }
 
     // MARK: speech to text
@@ -203,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func transcribe(_ samples: [Float]) {
         busy += 1
         setIcon("ellipsis.circle", "Transcribing…")
-        hud.show("Transcribing…")
+        hud.show("Transcribing…", busy: true)  // until the server answers
         var req = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/transcribe")!)
         req.httpMethod = "POST"
         req.timeoutInterval = 120
@@ -220,18 +230,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if let err = err ?? (obj?["error"] as? String).map({ NSError(domain: "server", code: 0, userInfo: [NSLocalizedDescriptionKey: $0]) }) {
                     log("asr error: \(err.localizedDescription)")
                     self.setIcon("exclamationmark.triangle", "Transcription failed, see logs")
-                    self.flash("Transcription failed", 2)
+                    self.flash(.failed)
                     return
                 }
                 log(String(format: "asr %.2fs, %d chars", Date().timeIntervalSince(t0), text.count))
-                if text.isEmpty { self.setIdle(); return }
+                if text.isEmpty { self.flash(.nothing); return }
                 let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
                 if let reason = pasteBlocker() {
                     // Can't send Cmd+V: leave the text on the clipboard instead of losing it.
                     log("paste: failed (\(reason)), \(text.count) chars left on clipboard, app \(app)")
                     leaveOnClipboard(text)
-                    self.flash(reason == "no accessibility" ? "No Accessibility access: text is on the clipboard, ⌘V"
-                                                            : "Password field: text is on the clipboard, ⌘V", 4)
+                    self.flash(reason == "no accessibility" ? .copied : .password)
                 } else {
                     paste(text + " ")  // trailing space so consecutive dictations join cleanly
                     log("paste: ok, \(text.count) chars, app \(app)")
@@ -307,6 +316,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(hintLine)
         axItem = item("⚠︎ Grant Accessibility Access…") { openPrivacyPane("Privacy_Accessibility") }  // only while missing
         menu.addItem(axItem)
+        modelItem = item("⬇︎ Download a Model…") { SettingsWindow.shared.show(.models) }  // only while none is installed
+        menu.addItem(modelItem)
         menu.addItem(.separator())
         micItem = NSMenuItem(title: "Microphone", action: nil, keyEquivalent: "")
         micItem.submenu = NSMenu()
@@ -328,7 +339,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         guard menu === status.menu else { return }
-        axItem.isHidden = AXIsProcessTrusted()
+        axItem.isHidden = axTrusted
+        modelItem.isHidden = models.activeInstalled && !demoNoModel
         hintLine.title = "Hold \(Pref.hotkey.short) and speak"
         let pref = inputPref, pick = resolveInput(pref)
         micItem.title = "Microphone: \(pick.device?.name ?? systemInputName())" + (pick.fallback ? " (fallback)" : "")
@@ -369,7 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func setIdle() {
         if !recording && busy == 0 && Date() >= hudUntil { hud.hide() }
-        if !AXIsProcessTrusted() { setIcon("mic.slash", "Needs Accessibility access"); return }
+        if !axTrusted { setIcon("mic.slash", "Needs Accessibility access"); return }
         if let ready { setIcon("mic", ready) }
         else if !models.activeInstalled { setIcon("arrow.down.circle", "No model yet: download one in Settings") }
         else { setIcon("mic", "Loading model…") }

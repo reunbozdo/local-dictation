@@ -46,9 +46,40 @@ func paste(_ text: String) {
 
 // MARK: - HUD: small pill at the bottom of the screen, never takes focus
 
+/// Live mic meter: the last few tenths of a second of loudness as bars scrolling right to left.
+final class LevelView: NSView {
+    static let bars = 18
+    private(set) var levels = [CGFloat](repeating: 0, count: LevelView.bars)
+    var color = NSColor.systemRed
+
+    func push(_ level: CGFloat) {
+        // Fast attack, slower release: speech reads as a lively wave, not flicker.
+        let v = level > (levels.last ?? 0) ? level : max(level, (levels.last ?? 0) * 0.6)
+        levels.removeFirst(); levels.append(v)
+        needsDisplay = true
+    }
+
+    func reset() { levels = .init(repeating: 0, count: Self.bars); needsDisplay = true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let w: CGFloat = 3, gap: CGFloat = 2, minH: CGFloat = 3
+        color.setFill()
+        for (i, l) in levels.enumerated() {
+            let h = minH + (bounds.height - minH) * l
+            let r = NSRect(x: CGFloat(i) * (w + gap), y: (bounds.height - h) / 2, width: w, height: h)
+            NSBezierPath(roundedRect: r, xRadius: w / 2, yRadius: w / 2).fill()
+        }
+    }
+}
+
 final class HUD {
     private let panel: NSPanel
     private let label = NSTextField(labelWithString: "")
+    private let icon = NSImageView()
+    private let spinner = NSProgressIndicator()
+    private let meter = LevelView()
+    private let clock = NSTextField(labelWithString: "")
+    private var tick: Timer?
 
     init() {
         panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 170, height: 34),
@@ -62,21 +93,67 @@ final class HUD {
         bg.autoresizingMask = [.width, .height]
         bg.material = .hudWindow; bg.state = .active; bg.wantsLayer = true; bg.layer?.cornerRadius = 17
         label.font = .systemFont(ofSize: 14, weight: .medium)
-        label.alignment = .center
-        label.frame = NSRect(x: 0, y: 8, width: 170, height: 18)
-        bg.addSubview(label)
+        label.lineBreakMode = .byTruncatingTail
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        clock.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
+        clock.textColor = .secondaryLabelColor
+        clock.alignment = .right
+        [label, icon, spinner, meter, clock].forEach(bg.addSubview)
         panel.contentView = bg
     }
 
-    func show(_ text: String, color: NSColor = .labelColor) {
-        label.stringValue = text; label.textColor = color
-        let w = max(170, ceil(label.attributedStringValue.size().width) + 36)
-        label.frame = NSRect(x: 0, y: 8, width: w, height: 18)
+    private func place(width w: CGFloat) {
         if let screen = NSScreen.main?.visibleFrame {
             panel.setFrame(NSRect(x: screen.midX - w / 2, y: screen.minY + 60, width: w, height: 34), display: true)
         }
         panel.orderFrontRegardless()
     }
 
-    func hide() { panel.orderOut(nil) }
+    /// A status line: an SF Symbol in `tint`, or a spinner while something is in progress, then the text.
+    func show(_ text: String, symbol: String? = nil, tint: NSColor = .secondaryLabelColor, busy: Bool = false) {
+        stopMeter()
+        meter.isHidden = true; clock.isHidden = true; label.isHidden = false
+        icon.isHidden = symbol == nil || busy
+        spinner.isHidden = !busy
+        busy ? spinner.startAnimation(nil) : spinner.stopAnimation(nil)
+        if let symbol, !busy {
+            icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 14, weight: .semibold))
+            icon.contentTintColor = tint
+        }
+        let glyph = symbol != nil || busy
+        icon.frame = NSRect(x: 16, y: 8, width: 18, height: 18)
+        spinner.frame = NSRect(x: 17, y: 9, width: 16, height: 16)
+        label.stringValue = text
+        label.textColor = .labelColor
+        let x: CGFloat = glyph ? 42 : 18
+        let textW = min(ceil(label.attributedStringValue.size().width) + 4, 520)
+        label.frame = NSRect(x: x, y: 8, width: textW, height: 18)
+        place(width: x + textW + 16)
+    }
+
+    /// Recording: level bars fed from `level` (0...1) and the elapsed time, refreshed 20x a second.
+    func showRecording(level: @escaping () -> Float) {
+        stopMeter()
+        label.isHidden = true; icon.isHidden = true; spinner.isHidden = true; spinner.stopAnimation(nil)
+        meter.isHidden = false; clock.isHidden = false
+        meter.reset()
+        let barsW = CGFloat(LevelView.bars) * 5 - 2
+        meter.frame = NSRect(x: 18, y: 8, width: barsW, height: 18)
+        clock.frame = NSRect(x: 18 + barsW + 8, y: 8, width: 42, height: 18)
+        clock.stringValue = "0:00"
+        place(width: 18 + barsW + 8 + 42 + 16)
+        let start = Date()
+        tick = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.meter.push(CGFloat(level()))
+            let s = Int(Date().timeIntervalSince(start))
+            self.clock.stringValue = String(format: "%d:%02d", s / 60, s % 60)
+        }
+    }
+
+    private func stopMeter() { tick?.invalidate(); tick = nil }
+
+    func hide() { stopMeter(); panel.orderOut(nil) }
 }

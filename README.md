@@ -11,7 +11,7 @@ Local speech-to-text for macOS. Nothing leaves your Mac.</p>
 - **Private by design.** Recognition runs on your Mac with [MLX](https://github.com/ml-explore/mlx) on Apple Silicon. The recognition server only listens on `127.0.0.1`, and audio is never uploaded.
 - **Pick your model.** Whisper, Parakeet and Qwen3-ASR, downloaded in one click and ranked for the language you speak.
 - **Your words, spelled right.** A plain-text dictionary teaches it product names and jargon (`GitHub`, `kubectl`, `PostgreSQL`) and fixes words it keeps mishearing.
-- **Stays out of the way.** It lives in the menu bar, shows a small status pill while it works, and puts your clipboard back after pasting.
+- **Stays out of the way.** It lives in the menu bar and shows a small pill with a live level meter while you talk. It also puts your clipboard back after pasting.
 
 ## Requirements
 
@@ -39,7 +39,7 @@ The app runs from your clone: it uses `.venv`, `server/` and `models.json` from 
 
 | | |
 |---|---|
-| Hold the key | Starts recording: “● Recording” appears at the bottom of the screen |
+| Hold the key | Starts recording: a live level meter and timer appear at the bottom of the screen |
 | Release | Transcribes and pastes the text, followed by a space |
 | Quick tap (< 0.3 s), or the key used in a shortcut (⌥→) | Ignored |
 | Menu bar icon | Status, microphone, dictionary, Settings (⌘,), logs |
@@ -103,7 +103,8 @@ Whisper and Qwen use the terms as a hint while recognising. Parakeet doesn't tak
 - **“No model”**: download one in Settings → Models.
 - **Fn key opens the emoji picker**: set System Settings → Keyboard → “Press 🌐 key to” → “Do Nothing”.
 - **Logs**: menu → Show Logs (`~/Library/Logs/Local Dictation/`): `app.log` (keys, mic, pastes), `server.log` (recognition), `downloads.log`.
-- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic`, then look in `app.log`.
+- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic` (or `--probe-hud` to watch the level meter for 4 s), then look in `app.log`.
+- **See any UI state without triggering it**: the same binary with `--demo <state>`. The states are `recording`, `transcribing`, `noModel`, `copied`, `micFailed`, `menu-noax` and others; [`app/Demo.swift`](app/Demo.swift) has the full list.
 
 ## How it works
 
