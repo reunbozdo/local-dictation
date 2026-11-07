@@ -1,11 +1,11 @@
 #!/bin/bash
-# Set up Hark from a fresh clone: Python environment for the speech-to-text server, then build.sh.
+# Set up Local Dictation from a fresh clone: Python environment for the speech-to-text server, then build.sh.
 # Needs Apple Silicon (MLX), Xcode Command Line Tools (swiftc) and internet (uv + Python packages).
 # Models are downloaded later from Settings -> Models.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 
-[ "$(uname -m)" = arm64 ] || { echo "Hark needs a Mac with Apple Silicon (M1 or later): MLX does not run on Intel."; exit 1; }
+[ "$(uname -m)" = arm64 ] || { echo "Local Dictation needs a Mac with Apple Silicon (M1 or later): MLX does not run on Intel."; exit 1; }
 command -v swiftc >/dev/null || { echo "swiftc not found. Install the Command Line Tools: xcode-select --install, then run this again."; exit 1; }
 
 cd "$ROOT"
@@ -16,5 +16,5 @@ command -v uv >/dev/null || curl -LsSf https://astral.sh/uv/install.sh | sh
 uv pip install --python .venv/bin/python -r requirements.txt
 
 ./build.sh
-open "$HOME/Applications/Hark.app"
-echo "Done. Hark is in the menu bar. Grant Microphone and Accessibility access when asked, then pick a model in Settings."
+open "$HOME/Applications/Local Dictation.app"
+echo "Done. Local Dictation is in the menu bar. Grant Microphone and Accessibility access when asked, then pick a model in Settings."

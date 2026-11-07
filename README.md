@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/icon-1024.png" width="128" alt="Hark icon"></p>
+<p align="center"><img src="assets/icon.png" width="128" alt="Local Dictation icon"></p>
 
-<h1 align="center">Hark</h1>
+<h1 align="center">Local Dictation</h1>
 
 <p align="center">Hold a key, speak, release: your words are typed into any app.<br>
 Local speech-to-text for macOS. Nothing leaves your Mac.</p>
@@ -22,15 +22,15 @@ Local speech-to-text for macOS. Nothing leaves your Mac.</p>
 ## Install
 
 ```bash
-git clone https://github.com/<you>/hark.git
-cd hark
+git clone https://github.com/<you>/local-dictation.git
+cd local-dictation
 ./install.sh
 ```
 
-`install.sh` creates a Python environment in `.venv` (using [uv](https://github.com/astral-sh/uv)), builds the app, and installs it to `~/Applications/Hark.app`. On the first launch:
+`install.sh` creates a Python environment in `.venv` (using [uv](https://github.com/astral-sh/uv)), builds the app, and installs it to `~/Applications/Local Dictation.app`. On the first launch:
 
 1. Allow **Microphone** access when macOS asks.
-2. Allow **Accessibility** in System Settings → Privacy & Security → Accessibility. Hark needs it to notice the key in other apps and to paste.
+2. Allow **Accessibility** in System Settings → Privacy & Security → Accessibility. Local Dictation needs it to notice the key in other apps and to paste.
 3. Settings opens on **Models**. Download one, for example *Whisper Large v3 Turbo*, and you're ready.
 
 The app runs from your clone: it uses `.venv`, `server/` and `models.json` from that folder, so keep the folder where it is. After pulling changes, run `./build.sh` to rebuild.
@@ -44,13 +44,13 @@ The app runs from your clone: it uses `.venv`, `server/` and `models.json` from 
 | Quick tap (< 0.3 s), or the key used in a shortcut (⌥→) | Ignored |
 | Menu bar icon | Status, microphone, dictionary, Settings (⌘,), logs |
 
-If Hark can't paste, for example in a password field or without Accessibility access, the text stays on the clipboard so you can paste it with ⌘V yourself.
+If Local Dictation can't paste, for example in a password field or without Accessibility access, the text stays on the clipboard so you can paste it with ⌘V yourself.
 
 ## Settings
 
 **General**
 - *Hold to dictate*: Right Option, Right Command, Right Control, Right Shift, or Fn/Globe.
-- *Record from*: any input device. The choice only affects Hark, not the system input. If the chosen device is unplugged, Hark falls back to the built-in mic.
+- *Record from*: any input device. The choice only affects Local Dictation, not the system input. If the chosen device is unplugged, Local Dictation falls back to the built-in mic.
 - *Dictionary*: opens your dictionary file (see below).
 - *Keep recent recordings*: saves the last 200 dictations (audio and text) locally. It's off by default and handy for tuning the dictionary.
 - *Launch at login*.
@@ -77,7 +77,7 @@ Some notes from testing on mixed Russian and English dictation (Apple M4 Max). W
 
 ## Dictionary
 
-`~/Library/Application Support/Hark/dictionary.txt`. Open it from the menu or Settings. Changes apply to the next dictation.
+`~/Library/Application Support/Local Dictation/dictionary.txt`. Open it from the menu or Settings. Changes apply to the next dictation.
 
 ```text
 # One term per line: passed to the model as a spelling hint, and the output
@@ -95,20 +95,20 @@ Whisper and Qwen use the terms as a hint while recognising. Parakeet doesn't tak
 
 - Audio is recorded only while you hold the key, and it's sent only to the local server on `127.0.0.1`.
 - The server runs offline (`HF_HUB_OFFLINE=1`). The network is used only when you download a model from Settings.
-- History is off by default. When it's on, files stay in `~/Library/Application Support/Hark/history/`.
+- History is off by default. When it's on, files stay in `~/Library/Application Support/Local Dictation/history/`.
 
 ## Troubleshooting
 
-- **Nothing happens when I hold the key.** Check Accessibility access (the menu shows a warning while it's missing). If you rebuilt the app and it stopped working, turn Hark off and on again in the Accessibility list.
+- **Nothing happens when I hold the key.** Check Accessibility access (the menu shows a warning while it's missing). If you rebuilt the app and it stopped working, turn Local Dictation off and on again in the Accessibility list.
 - **“No model”**: download one in Settings → Models.
 - **Fn key opens the emoji picker**: set System Settings → Keyboard → “Press 🌐 key to” → “Do Nothing”.
-- **Logs**: menu → Show Logs (`~/Library/Logs/Hark/`): `app.log` (keys, mic, pastes), `server.log` (recognition), `downloads.log`.
-- **Check the mic without dictating**: `~/Applications/Hark.app/Contents/MacOS/Hark --probe-mic`, then look in `app.log`.
+- **Logs**: menu → Show Logs (`~/Library/Logs/Local Dictation/`): `app.log` (keys, mic, pastes), `server.log` (recognition), `downloads.log`.
+- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic`, then look in `app.log`.
 
 ## How it works
 
 ```
-Hark.app (Swift, menu bar)                       server/asr_server.py (Python, MLX)
+Local Dictation.app (Swift, menu bar)            server/asr_server.py (Python, MLX)
   hotkey down  -> record mic (AudioQueue, 16 kHz)
   hotkey up    -> POST /transcribe (WAV)  ----->  trim silence -> model -> drop hallucinations
   paste via clipboard + ⌘V  <---------------  {"text"}     -> dictionary fixes
@@ -117,8 +117,8 @@ Hark.app (Swift, menu bar)                       server/asr_server.py (Python, M
 - `app/`: the Swift app: hotkey, recording, paste, HUD (`App.swift`, `Audio.swift`, `Paste.swift`), model downloads (`Models.swift`) and the SwiftUI settings (`Settings.swift`). Built with plain `swiftc`, no Xcode project.
 - `server/`: the recognition server and dictionary logic.
 - `models.json`: the model catalog.
-- `build.sh`: compiles, signs and installs the app. It signs with a self-signed certificate kept in its own keychain (`~/Library/Application Support/Hark/signing/`), so macOS permissions survive rebuilds.
-- `assets/`: the icon and its generator (`make_icon.sh`).
+- `build.sh`: compiles, signs and installs the app. It signs with a self-signed certificate kept in its own keychain (`~/Library/Application Support/Local Dictation/signing/`), so macOS permissions survive rebuilds.
+- `assets/`: the layered Liquid Glass icon (`AppIcon.icon`, edit it in Icon Composer) and its compiled form (`compile_icon.sh`).
 
 ## License
 

@@ -1,12 +1,12 @@
 // Paths, logging and preferences shared by the whole app.
 import Cocoa
 
-/// Repo checkout the app was built from (Info.plist HarkRoot, set by build.sh): .venv, server/, models.json.
-let root: String = Bundle.main.object(forInfoDictionaryKey: "HarkRoot") as? String
+/// Repo checkout the app was built from (Info.plist AppRoot, set by build.sh): .venv, server/, models.json.
+let root: String = Bundle.main.object(forInfoDictionaryKey: "AppRoot") as? String
     ?? FileManager.default.currentDirectoryPath
 let port = 47620  // the server gets it as --port
-let supportDir = NSHomeDirectory() + "/Library/Application Support/Hark"
-let logDir = NSHomeDirectory() + "/Library/Logs/Hark"
+let supportDir = NSHomeDirectory() + "/Library/Application Support/Local Dictation"
+let logDir = NSHomeDirectory() + "/Library/Logs/Local Dictation"
 let dictionaryPath = supportDir + "/dictionary.txt"
 let historyDir = supportDir + "/history"
 

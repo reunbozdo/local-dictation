@@ -3,14 +3,16 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>io.github.hark</string>
+	<string>io.github.localdictation</string>
 	<key>CFBundleName</key>
-	<string>Hark</string>
+	<string>Local Dictation</string>
 	<key>CFBundleDisplayName</key>
-	<string>Hark</string>
+	<string>Local Dictation</string>
 	<key>CFBundleExecutable</key>
-	<string>Hark</string>
+	<string>LocalDictation</string>
 	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
@@ -23,8 +25,8 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Hark records your voice while you hold the dictation key. Audio is transcribed on this Mac and never uploaded.</string>
-	<key>HarkRoot</key>
+	<string>Local Dictation records your voice while you hold the dictation key. Audio is transcribed on this Mac and never uploaded.</string>
+	<key>AppRoot</key>
 	<string>__ROOT__</string>
 </dict>
 </plist>

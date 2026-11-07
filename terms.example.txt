@@ -1,4 +1,4 @@
-# Hark dictionary. Edits apply to the next dictation, no restart needed.
+# Local Dictation dictionary. Edits apply to the next dictation, no restart needed.
 #
 # One term per line: the model gets the list as a spelling hint, and after recognition
 # Latin terms are normalised to the spelling here ("github", "Git Hub" -> "GitHub").

@@ -1,17 +1,17 @@
 #!/bin/bash
-# Build Hark.app into build/ and install it to ~/Applications.
-# The app remembers this repo path (Info.plist HarkRoot) to find .venv, server/ and models.json.
+# Build Local Dictation.app into build/ and install it to ~/Applications.
+# The app remembers this repo path (Info.plist AppRoot) to find .venv, server/ and models.json.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP="$ROOT/build/Hark.app"
+APP="$ROOT/build/Local Dictation.app"
 
 # Signing identity: a local self-signed cert in its own keychain (not the login one).
 # macOS ties Accessibility/Microphone grants to the designated requirement; with an ad-hoc
 # signature that is the cdhash, so every rebuild lost the grant. With this cert it is
-# `identifier "io.github.hark" and certificate leaf = <cert>`, the same for every build.
-SIGN_DIR="$HOME/Library/Application Support/Hark/signing"
+# `identifier "io.github.localdictation" and certificate leaf = <cert>`, the same for every build.
+SIGN_DIR="$HOME/Library/Application Support/Local Dictation/signing"
 KC="$SIGN_DIR/signing.keychain-db"
-CERT_NAME="Hark Local Signing"
+CERT_NAME="Local Dictation Signing"
 
 make_identity() {
     echo "Creating local signing identity in $KC"
@@ -49,8 +49,8 @@ CERT_SHA1="$(security find-certificate -c "$CERT_NAME" -Z "$KC" | awk '/SHA-1/ {
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O -parse-as-library -o "$APP/Contents/MacOS/Hark" "$ROOT"/app/*.swift
-cp "$ROOT/assets/AppIcon.icns" "$APP/Contents/Resources/"
+swiftc -O -parse-as-library -o "$APP/Contents/MacOS/LocalDictation" "$ROOT"/app/*.swift
+cp "$ROOT"/assets/compiled/{Assets.car,AppIcon.icns} "$APP/Contents/Resources/"  # from assets/compile_icon.sh
 sed "s#__ROOT__#$ROOT#" "$ROOT/app/Info.plist" > "$APP/Contents/Info.plist"
 
 # codesign only finds identities in the user's keychain search list: add ours for the
@@ -60,10 +60,10 @@ while IFS= read -r k; do ORIG_LIST+=("$k"); done < <(security list-keychains -d 
 restore_list() { security list-keychains -d user -s "${ORIG_LIST[@]}"; }
 trap restore_list EXIT
 security list-keychains -d user -s "${ORIG_LIST[@]}" "$KC"
-codesign --force --sign "$CERT_SHA1" --identifier io.github.hark "$APP"
+codesign --force --sign "$CERT_SHA1" --identifier io.github.localdictation "$APP"
 restore_list; trap - EXIT
 
 mkdir -p "$HOME/Applications"
-rm -rf "$HOME/Applications/Hark.app"
-cp -R "$APP" "$HOME/Applications/Hark.app"
-echo "Installed: $HOME/Applications/Hark.app ($(codesign -d -r- "$APP" 2>&1 | tail -1 | sed 's/^designated => //'))"
+rm -rf "$HOME/Applications/Local Dictation.app"
+cp -R "$APP" "$HOME/Applications/Local Dictation.app"
+echo "Installed: $HOME/Applications/Local Dictation.app ($(codesign -d -r- "$APP" 2>&1 | tail -1 | sed 's/^designated => //'))"

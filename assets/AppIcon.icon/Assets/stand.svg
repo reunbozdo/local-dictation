@@ -1,0 +1,8 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Closed shapes only: the icon renderer fills every path with the layer colour. -->
+  <path d="M310 466 A202 202 0 0 0 714 466 L670 466 A158 158 0 0 1 354 466 Z" fill="#000000"/>
+  <circle cx="332" cy="466" r="22" fill="#000000"/>
+  <circle cx="692" cy="466" r="22" fill="#000000"/>
+  <rect x="490" y="660" width="44" height="120" fill="#000000"/>
+  <rect x="400" y="772" width="224" height="44" rx="22" fill="#000000"/>
+</svg>

@@ -1,4 +1,4 @@
-// Hark: menu bar app. Hold the hotkey -> record the mic; release -> the local speech-to-text server
+// Local Dictation: menu bar app. Hold the hotkey -> record the mic; release -> the local speech-to-text server
 // transcribes -> the text is pasted into the focused field (clipboard + Cmd+V, clipboard restored).
 // Audio never leaves the machine: the server listens on 127.0.0.1 only.
 import AVFoundation
@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // Audio start/stop never run on the main thread: if CoreAudio stalls, the menu and HUD stay alive.
-    let audio = DispatchQueue(label: "hark.audio")
+    let audio = DispatchQueue(label: "localdictation.audio")
     var audioPending = 0        // ops queued on `audio`, main thread only
     var audioProgress = Date()  // last time one of them finished
 
@@ -135,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func begin() {
         guard !recording else { return }
         guard ready != nil else {  // nothing to transcribe with: say why instead of recording into the void
-            flash(models.activeInstalled ? "Model is loading…" : "No model: open Hark Settings", 2)
+            flash(models.activeInstalled ? "Model is loading…" : "No model: open Local Dictation Settings", 2)
             return
         }
         cancelled = false
@@ -173,7 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !started {
             log("record refused: audio queue busy for \(Int(Date().timeIntervalSince(audioProgress)))s")
             recording = false
-            setIcon("exclamationmark.triangle", "Microphone not responding: restart Hark")
+            setIcon("exclamationmark.triangle", "Microphone not responding: restart Local Dictation")
             flash("Microphone not responding", 3)
         }
     }
@@ -320,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(item("Show Logs") { NSWorkspace.shared.open(URL(fileURLWithPath: logDir)) })
         menu.addItem(item("Restart Recognition") { [weak self] in self?.restartServer() })
         menu.addItem(.separator())
-        let quit = item("Quit Hark") { NSApp.terminate(nil) }
+        let quit = item("Quit Local Dictation") { NSApp.terminate(nil) }
         quit.keyEquivalent = "q"
         menu.addItem(quit)
         status.menu = menu
@@ -376,7 +376,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func setIcon(_ symbol: String, _ line: String?, tint: NSColor? = nil) {
-        var img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Hark")
+        var img = NSImage(systemSymbolName: symbol, accessibilityDescription: "Local Dictation")
         if let tint, let base = img {
             img = base.withSymbolConfiguration(.init(paletteColors: [tint]))
             img?.isTemplate = false

@@ -1,4 +1,4 @@
-"""Local speech-to-text server for Hark. Listens on 127.0.0.1 only: audio never leaves the Mac.
+"""Local speech-to-text server for Local Dictation. Listens on 127.0.0.1 only: audio never leaves the Mac.
 
 The app starts it with the model picked in Settings and restarts it when the model changes:
     python asr_server.py --engine whisper --repo mlx-community/whisper-large-v3-turbo --terms PATH

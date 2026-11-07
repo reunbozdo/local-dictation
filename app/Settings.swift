@@ -98,7 +98,7 @@ struct GeneralView: View {
                 .onChange(of: input) { _, v in
                     if let d = devices.first(where: { $0.uid == v }) { UserDefaults.standard.set(d.name, forKey: "input_device_name") }
                 }
-                Text("Only Hark uses this choice; the system input stays as it is. If the chosen mic is unplugged, Hark records from the built-in one.")
+                Text("Only Local Dictation uses this choice; the system input stays as it is. If the chosen mic is unplugged, Local Dictation records from the built-in one.")
                     .font(.callout).foregroundStyle(.secondary)
             } header: { Text("Microphone") }
 
