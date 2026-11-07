@@ -1,0 +1,16 @@
+# Hark dictionary. Edits apply to the next dictation, no restart needed.
+#
+# One term per line: the model gets the list as a spelling hint, and after recognition
+# Latin terms are normalised to the spelling here ("github", "Git Hub" -> "GitHub").
+# "heard => written" is a plain replacement for words the model keeps getting wrong.
+# Empty lines and lines starting with # are skipped.
+
+GitHub
+Kubernetes
+PostgreSQL
+macOS
+iPhone
+
+# Replacements:
+cube control => kubectl
+kube control => kubectl

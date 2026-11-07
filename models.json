@@ -1,0 +1,56 @@
+{
+  "_comment": "Model catalog shown in Settings -> Models. Read by the app (sizes, languages, ranking) and the server (engine). 'languages': ISO 639-1 codes or ['*'] = all Whisper languages. 'recommended': languages this model is the suggested pick for (['*'] = any). Order = display order inside a group.",
+  "models": [
+    {
+      "id": "whisper-large-v3-turbo", "name": "Whisper Large v3 Turbo",
+      "engine": "whisper", "repo": "mlx-community/whisper-large-v3-turbo", "size": 1613979758,
+      "languages": ["*"], "recommended": ["*"], "speed": "Fast", "accuracy": "Great",
+      "note": "Best balance of speed and accuracy. Supports the custom dictionary."
+    },
+    {
+      "id": "whisper-large-v3", "name": "Whisper Large v3",
+      "engine": "whisper", "repo": "mlx-community/whisper-large-v3-mlx", "size": 3083522487,
+      "languages": ["*"], "recommended": ["*"], "speed": "Medium", "accuracy": "Best",
+      "note": "Most accurate, especially with mixed-language speech and technical terms. About 2x slower than Turbo."
+    },
+    {
+      "id": "parakeet-tdt-0.6b-v2", "name": "Parakeet TDT 0.6B v2",
+      "engine": "parakeet", "repo": "mlx-community/parakeet-tdt-0.6b-v2", "size": 2471865399,
+      "languages": ["en"], "recommended": ["en"], "speed": "Fastest", "accuracy": "Great",
+      "note": "Very fast with excellent English accuracy. Takes no spelling hint, but dictionary fixes still apply."
+    },
+    {
+      "id": "parakeet-tdt-0.6b-v3", "name": "Parakeet TDT 0.6B v3",
+      "engine": "parakeet", "repo": "mlx-community/parakeet-tdt-0.6b-v3", "size": 2509044141,
+      "languages": ["bg","cs","da","de","el","en","es","et","fi","fr","hr","hu","it","lt","lv","mt","nl","pl","pt","ro","ru","sk","sl","sv","uk"],
+      "recommended": [], "speed": "Fastest", "accuracy": "Good",
+      "note": "European languages, detects the language itself. Weak on English words inside other languages. Dictionary fixes only."
+    },
+    {
+      "id": "qwen3-asr-1.7b", "name": "Qwen3-ASR 1.7B (8-bit)",
+      "engine": "qwen", "repo": "mlx-community/Qwen3-ASR-1.7B-8bit", "size": 2467859030,
+      "languages": ["ar","cs","da","de","el","en","es","fa","fi","fil","fr","hi","hu","id","it","ja","ko","mk","ms","nl","pl","pt","ro","ru","sv","th","tr","vi","yue","zh"],
+      "recommended": ["zh","yue","ja","ko"], "speed": "Fast", "accuracy": "Great",
+      "note": "Strong on Chinese, Japanese and Korean. Writes Latin terms phonetically in other scripts."
+    },
+    {
+      "id": "qwen3-asr-0.6b", "name": "Qwen3-ASR 0.6B (8-bit)",
+      "engine": "qwen", "repo": "mlx-community/Qwen3-ASR-0.6B-8bit", "size": 1010773761,
+      "languages": ["ar","cs","da","de","el","en","es","fa","fi","fil","fr","hi","hu","id","it","ja","ko","mk","ms","nl","pl","pt","ro","ru","sv","th","tr","vi","yue","zh"],
+      "recommended": [], "speed": "Fast", "accuracy": "Good",
+      "note": "Smaller Qwen3-ASR for Macs with less memory."
+    },
+    {
+      "id": "whisper-small", "name": "Whisper Small",
+      "engine": "whisper", "repo": "mlx-community/whisper-small-mlx", "size": 481309720,
+      "languages": ["*"], "recommended": [], "speed": "Fastest", "accuracy": "Fair",
+      "note": "Small download for 8 GB Macs. Noticeably more mistakes."
+    },
+    {
+      "id": "whisper-base", "name": "Whisper Base",
+      "engine": "whisper", "repo": "mlx-community/whisper-base-mlx", "size": 143726326,
+      "languages": ["*"], "recommended": [], "speed": "Fastest", "accuracy": "Poor",
+      "note": "Tiny. Good for trying the app out, not for daily use."
+    }
+  ]
+}

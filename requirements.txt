@@ -1,0 +1,7 @@
+# Runtime of server/asr_server.py. One package per engine in models.json.
+mlx==0.32.4
+numpy==2.5.4
+huggingface-hub==2.4.0
+mlx-whisper==0.4.3
+parakeet-mlx==0.6.0
+mlx-qwen3-asr==0.4.4
