@@ -12,12 +12,54 @@ func pasteBlocker() -> String? {
     return nil
 }
 
+/// What has keyboard focus when the text is ready. The user may have switched windows or clicked
+/// elsewhere while speaking, and Cmd+V into a non-text place silently drops the text.
+enum Focus { case text, notText, unknown }
+
+func focusedField() -> (Focus, String) {
+    func attr(_ e: AXUIElement, _ a: String) -> AnyObject? {
+        var v: AnyObject?
+        return AXUIElementCopyAttributeValue(e, a as CFString, &v) == .success ? v : nil
+    }
+    var any = attr(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute)
+    if any == nil, let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier {
+        // Electron apps build their accessibility tree only when asked to; ask, then look again.
+        let app = AXUIElementCreateApplication(pid)
+        if AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success {
+            for _ in 0..<5 where any == nil {  // the tree may take a moment to appear the first time
+                any = attr(app, kAXFocusedUIElementAttribute)
+                if any == nil { usleep(60_000) }
+            }
+        }
+    }
+    guard let any else { return (.unknown, "no focused element") }
+    let el = any as! AXUIElement
+    let role = attr(el, kAXRoleAttribute) as? String ?? "?"
+    let sub = attr(el, kAXSubroleAttribute) as? String ?? ""
+    let desc = sub.isEmpty ? role : "\(role)/\(sub)"
+    var names: CFArray?
+    AXUIElementCopyAttributeNames(el, &names)
+    let attrs = Set(names as? [String] ?? [])
+    var settable = DarwinBoolean(false)
+    AXUIElementIsAttributeSettable(el, kAXValueAttribute as CFString, &settable)
+    if ["AXTextField", "AXTextArea", "AXComboBox"].contains(role) || attrs.contains("AXEditableAncestor")
+        || (attrs.contains(kAXSelectedTextRangeAttribute) && settable.boolValue) {
+        return (.text, desc)
+    }
+    // Containers can hold an editor that doesn't report itself (web views, terminals, custom
+    // editors): try the paste there. Plain controls and lists can't take text.
+    let containers = ["AXWebArea", "AXGroup", "AXWindow", "AXScrollArea", "AXUnknown", "AXApplication", "AXSplitGroup"]
+    return (containers.contains(role) ? .unknown : .notText, desc)
+}
+
 func leaveOnClipboard(_ text: String) {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(text, forType: .string)
 }
 
-func paste(_ text: String) {
+/// `restore`: put the user's previous clipboard back afterwards. Off when we can't tell whether
+/// the paste landed, so the dictated text stays on the clipboard rather than being lost.
+func paste(_ text: String, restore: Bool) {
     let pb = NSPasteboard.general
     // Keep whatever the user had on the clipboard and put it back after the paste.
     let saved: [[(NSPasteboard.PasteboardType, Data)]] = (pb.pasteboardItems ?? []).map { item in
@@ -25,7 +67,9 @@ func paste(_ text: String) {
     }
     pb.clearContents()
     pb.setString(text, forType: .string)
-    pb.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))  // clipboard managers skip it
+    if restore {  // a temporary item: clipboard managers skip it
+        pb.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
+    }
     let ours = pb.changeCount
 
     let src = CGEventSource(stateID: .hidSystemState)
@@ -35,7 +79,7 @@ func paste(_ text: String) {
     down?.post(tap: .cghidEventTap); up?.post(tap: .cghidEventTap)
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-        guard pb.changeCount == ours else { return }  // user copied something new meanwhile
+        guard restore, pb.changeCount == ours else { return }  // user copied something new meanwhile
         pb.clearContents()
         let items = saved.map { pairs -> NSPasteboardItem in
             let it = NSPasteboardItem(); pairs.forEach { it.setData($0.1, forType: $0.0) }; return it

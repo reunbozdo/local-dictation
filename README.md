@@ -44,7 +44,7 @@ The app runs from your clone: it uses `.venv`, `server/` and `models.json` from 
 | Quick tap (< 0.3 s), or the key used in a shortcut (⌥→) | Ignored |
 | Menu bar icon | Status, microphone, dictionary, Settings (⌘,), logs |
 
-If Local Dictation can't paste, for example in a password field or without Accessibility access, the text stays on the clipboard so you can paste it with ⌘V yourself.
+The text goes wherever the cursor is when it's ready, so you can switch windows while you talk. If there's no text field there (you clicked on a list or the desktop), it's in a password field, or Accessibility access is missing, the text stays on the clipboard so you can paste it with ⌘V yourself. The menu also has **Copy Last Dictation**.
 
 ## Settings
 
@@ -103,7 +103,7 @@ Whisper and Qwen use the terms as a hint while recognising. Parakeet doesn't tak
 - **“No model”**: download one in Settings → Models.
 - **Fn key opens the emoji picker**: set System Settings → Keyboard → “Press 🌐 key to” → “Do Nothing”.
 - **Logs**: menu → Show Logs (`~/Library/Logs/Local Dictation/`): `app.log` (keys, mic, pastes), `server.log` (recognition), `downloads.log`.
-- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic` (or `--probe-hud` to watch the level meter for 4 s), then look in `app.log`.
+- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic` (or `--probe-hud` to watch the level meter for 4 s), then look in `app.log`. `--probe-focus` logs what has keyboard focus, and `--probe-deliver "text"` pastes a test text the way a dictation would. Start these with `open -n "$HOME/Applications/Local Dictation.app" --args …` so they run with the app's Accessibility access.
 - **See any UI state without triggering it**: the same binary with `--demo <state>`. The states are `recording`, `transcribing`, `noModel`, `copied`, `micFailed`, `menu-noax` and others; [`app/Demo.swift`](app/Demo.swift) has the full list.
 
 ## How it works

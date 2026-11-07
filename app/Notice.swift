@@ -3,13 +3,14 @@
 import Cocoa
 
 enum Notice: String, CaseIterable {
-    case loading, noModel, nothing, copied, password, micFailed, micStuck, failed
+    case loading, noModel, nothing, noField, copied, password, micFailed, micStuck, failed
 
     var text: String {
         switch self {
         case .loading: "Model is still loading…"
         case .noModel: "No model yet: open Settings → Models"
         case .nothing: "Didn't catch that"
+        case .noField: "No text field in focus: copied, press ⌘V"
         case .copied: "Copied: press ⌘V (allow Accessibility to paste)"
         case .password: "Password field: copied, press ⌘V"
         case .micFailed: "Microphone isn't working"
@@ -22,7 +23,7 @@ enum Notice: String, CaseIterable {
         case .loading: nil
         case .noModel: "arrow.down.circle"
         case .nothing: "ear"
-        case .copied: "doc.on.clipboard"
+        case .copied, .noField: "doc.on.clipboard"
         case .password: "lock.fill"
         case .micFailed, .micStuck: "mic.slash"
         case .failed: "exclamationmark.triangle.fill"
@@ -32,7 +33,7 @@ enum Notice: String, CaseIterable {
     var tint: NSColor {
         switch self {
         case .loading, .nothing: .secondaryLabelColor
-        case .copied, .password: .systemBlue
+        case .copied, .noField, .password: .systemBlue
         case .noModel, .failed: .systemOrange
         case .micFailed, .micStuck: .systemRed
         }
@@ -41,7 +42,7 @@ enum Notice: String, CaseIterable {
         switch self {
         case .nothing: 1.5
         case .loading: 2
-        case .copied, .password: 4
+        case .copied, .noField, .password: 4
         default: 3
         }
     }

@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var stateLine: NSMenuItem!
     var hintLine: NSMenuItem!
     var micItem: NSMenuItem!
+    var lastItem: NSMenuItem!
     var axItem: NSMenuItem!
     var modelItem: NSMenuItem!
     let recorder = Recorder()
@@ -21,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var cancelled = false
     var pressedAt = Date()
     var busy = 0
+    var lastText: String?  // last dictation, kept so a paste that went nowhere can be recovered
     var quitting = false
     var ready: String?  // "Ready · <model>" once the server answers /health
     var monitors: [Any] = []
@@ -42,6 +44,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if CommandLine.arguments.contains("--probe-hud") { probeMic(seconds: 4, hud: true); return }
         if let i = CommandLine.arguments.firstIndex(of: "--demo") {
             demo(CommandLine.arguments.dropFirst(i + 1).first ?? ""); return
+        }
+        if CommandLine.arguments.contains("--probe-focus") {  // log what has focus now, for tuning focusedField()
+            let (f, desc) = focusedField()
+            log("probe-focus: \(f) \(desc), app \(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?")")
+            exit(0)
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--probe-deliver") {  // paste a test text into the focused app
+            deliver(CommandLine.arguments.dropFirst(i + 1).first ?? "Local Dictation test")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { exit(0) }  // let the clipboard restore and HUD run
+            return
         }
         if CommandLine.arguments.contains("--check-access") {  // no prompt, no server: for checking a fresh build
             log("check-access: accessibility trusted: \(AXIsProcessTrusted()), post events: \(CGPreflightPostEventAccess())")
@@ -235,19 +247,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 log(String(format: "asr %.2fs, %d chars", Date().timeIntervalSince(t0), text.count))
                 if text.isEmpty { self.flash(.nothing); return }
-                let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
-                if let reason = pasteBlocker() {
-                    // Can't send Cmd+V: leave the text on the clipboard instead of losing it.
-                    log("paste: failed (\(reason)), \(text.count) chars left on clipboard, app \(app)")
-                    leaveOnClipboard(text)
-                    self.flash(reason == "no accessibility" ? .copied : .password)
-                } else {
-                    paste(text + " ")  // trailing space so consecutive dictations join cleanly
-                    log("paste: ok, \(text.count) chars, app \(app)")
-                    self.setIdle()
-                }
+                self.deliver(text)
             }
         }.resume()
+    }
+
+    /// Put the text where the user is now, or on the clipboard if it can't go there.
+    func deliver(_ text: String) {
+        lastText = text
+        let app = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"
+        if let reason = pasteBlocker() {
+            // Can't send Cmd+V: leave the text on the clipboard instead of losing it.
+            log("paste: failed (\(reason)), \(text.count) chars left on clipboard, app \(app)")
+            leaveOnClipboard(text)
+            flash(reason == "no accessibility" ? .copied : .password)
+            return
+        }
+        // The user may have switched windows or clicked away while speaking.
+        let (focus, what) = focusedField()
+        switch focus {
+        case .notText:
+            log("paste: no text field (\(what)), \(text.count) chars left on clipboard, app \(app)")
+            leaveOnClipboard(text)
+            flash(.noField)
+        case .text, .unknown:
+            paste(text + " ", restore: focus == .text)  // trailing space so consecutive dictations join cleanly
+            log("paste: ok into \(what)\(focus == .unknown ? ", kept on clipboard" : ""), \(text.count) chars, app \(app)")
+            setIdle()
+        }
     }
 
     func startServer() {
@@ -310,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func buildMenu() {
         status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         let menu = NSMenu()
+        menu.autoenablesItems = false  // isEnabled below is set by hand
         stateLine = NSMenuItem(title: "", action: nil, keyEquivalent: ""); stateLine.isEnabled = false
         menu.addItem(stateLine)
         hintLine = NSMenuItem(title: "", action: nil, keyEquivalent: ""); hintLine.isEnabled = false
@@ -318,6 +346,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(axItem)
         modelItem = item("⬇︎ Download a Model…") { SettingsWindow.shared.show(.models) }  // only while none is installed
         menu.addItem(modelItem)
+        lastItem = item("Copy Last Dictation") { [weak self] in self?.lastText.map(leaveOnClipboard) }
+        menu.addItem(lastItem)
         menu.addItem(.separator())
         micItem = NSMenuItem(title: "Microphone", action: nil, keyEquivalent: "")
         micItem.submenu = NSMenu()
@@ -341,6 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard menu === status.menu else { return }
         axItem.isHidden = axTrusted
         modelItem.isHidden = models.activeInstalled && !demoNoModel
+        lastItem.isEnabled = lastText != nil
         hintLine.title = "Hold \(Pref.hotkey.short) and speak"
         let pref = inputPref, pick = resolveInput(pref)
         micItem.title = "Microphone: \(pick.device?.name ?? systemInputName())" + (pick.fallback ? " (fallback)" : "")
