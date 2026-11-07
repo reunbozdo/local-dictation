@@ -5,44 +5,46 @@ import Combine
 import ServiceManagement
 import SwiftUI
 
-enum SettingsTab: Hashable { case general, models }
+enum SettingsTab: Int { case general, models }
 
-final class SettingsNav: ObservableObject { @Published var tab: SettingsTab = .general }
-
+/// Native preferences window: tab icons in the toolbar (NSTabViewController .toolbar style),
+/// each tab a SwiftUI form. SwiftUI's TabView draws a boxed segmented control here instead.
 final class SettingsWindow: NSObject, NSWindowDelegate {
     static let shared = SettingsWindow()
     private var window: NSWindow?
-    private let nav = SettingsNav()
+    private let tabs = NSTabViewController()
 
     func show(_ tab: SettingsTab? = nil) {
-        if let tab { nav.tab = tab }
         if window == nil {
-            let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(nav: nav)))
-            w.title = "Hark Settings"
+            tabs.tabStyle = .toolbar
+            tabs.addTabViewItem(item("General", "gearshape", GeneralView()))
+            tabs.addTabViewItem(item("Models", "waveform", ModelsView()))
+            let w = NSWindow(contentViewController: tabs)
             w.styleMask = [.titled, .closable, .miniaturizable]
+            w.toolbarStyle = .preference
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.center()
             window = w
         }
+        if let tab { tabs.selectedTabViewItemIndex = tab.rawValue }
         // A menu bar app has no Dock icon; show one while Settings is open so it can be Cmd-Tabbed to.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }
 
-    func windowWillClose(_ n: Notification) { NSApp.setActivationPolicy(.accessory) }
-}
-
-struct SettingsView: View {
-    @ObservedObject var nav: SettingsNav
-    var body: some View {
-        TabView(selection: $nav.tab) {
-            GeneralView().tabItem { Label("General", systemImage: "gearshape") }.tag(SettingsTab.general)
-            ModelsView().tabItem { Label("Models", systemImage: "waveform") }.tag(SettingsTab.models)
-        }
-        .frame(width: 580, height: 640)
+    private func item<V: View>(_ label: String, _ symbol: String, _ view: V) -> NSTabViewItem {
+        let host = NSHostingController(rootView: view.frame(width: 580, height: 620))
+        host.title = label  // the window title follows the selected tab
+        host.preferredContentSize = NSSize(width: 580, height: 620)  // NSTabViewController sizes the window from this
+        let it = NSTabViewItem(viewController: host)
+        it.label = label
+        it.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+        return it
     }
+
+    func windowWillClose(_ n: Notification) { NSApp.setActivationPolicy(.accessory) }
 }
 
 // MARK: - General
