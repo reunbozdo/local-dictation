@@ -5,6 +5,8 @@
 <p align="center">Press a key, speak: your words are typed into any app.<br>
 Local speech-to-text for macOS. Nothing leaves your Mac.</p>
 
+<p align="center"><img src="docs/recording.gif" width="444" alt="The recording pill: live level meter, timer, Cancel and Stop buttons"></p>
+
 ---
 
 - **Talk into any app.** Hold right ⌥ Option and speak, or tap it, speak as long as you like, and tap again. You can also pick another key or a combination such as ⌃⌥Space. The text is pasted where your cursor is: editor, chat, terminal, browser.
@@ -22,7 +24,7 @@ Local speech-to-text for macOS. Nothing leaves your Mac.</p>
 ## Install
 
 ```bash
-git clone https://github.com/<you>/local-dictation.git
+git clone https://github.com/reunbozdo/local-dictation.git
 cd local-dictation
 ./install.sh
 ```
@@ -47,7 +49,14 @@ The app runs from your clone: it uses `.venv`, `server/` and `models.json` from 
 
 The text goes wherever the cursor is when it's ready, so you can switch windows while you talk. If there's no text field there (you clicked on a list or the desktop), it's in a password field, or Accessibility access is missing, the text stays on the clipboard so you can paste it with ⌘V yourself. The menu also has **Copy Last Dictation**.
 
+<p align="center"><img src="docs/menu.png" width="380" alt="Menu bar menu"></p>
+
 ## Settings
+
+<p align="center">
+<img src="docs/settings-general.png" width="400" alt="Settings: General">
+<img src="docs/settings-models.png" width="400" alt="Settings: Models">
+</p>
 
 **General**
 - *Key*: Right Option, Right Command, Right Control, Right Shift, Fn/Globe, or a key combination you record (such as ⌃⌥Space).
@@ -72,6 +81,8 @@ The text goes wherever the cursor is when it's ready, so you can switch windows 
 | Qwen3-ASR 1.7B (8-bit) | 2.5 GB | 30 | Strong on Chinese, Japanese and Korean |
 | Qwen3-ASR 0.6B (8-bit) | 1.0 GB | 30 | Lighter Qwen |
 | Whisper Small / Base | 0.5 / 0.14 GB | 99 | For low-memory Macs or a quick try; noticeably less accurate |
+
+Models are downloaded from Hugging Face and keep their own licenses: Whisper is MIT, Parakeet is CC-BY-4.0, and Qwen3-ASR is Apache 2.0. Local Dictation doesn't ship any model.
 
 Models are stored in the standard Hugging Face cache (`~/.cache/huggingface/hub`), so models you already have there are picked up. The catalog lives in [`models.json`](models.json). To add a model, add an entry with one of the supported engines (`whisper`, `parakeet`, `qwen`).
 
