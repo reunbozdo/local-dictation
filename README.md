@@ -2,12 +2,12 @@
 
 <h1 align="center">Local Dictation</h1>
 
-<p align="center">Hold a key, speak, release: your words are typed into any app.<br>
+<p align="center">Press a key, speak: your words are typed into any app.<br>
 Local speech-to-text for macOS. Nothing leaves your Mac.</p>
 
 ---
 
-- **Push to talk anywhere.** Hold right ⌥ Option (or another key you pick), speak, let go. The text is pasted where your cursor is: editor, chat, terminal, browser.
+- **Talk into any app.** Hold right ⌥ Option and speak, or tap it, speak as long as you like, and tap again. You can also pick another key or a combination such as ⌃⌥Space. The text is pasted where your cursor is: editor, chat, terminal, browser.
 - **Private by design.** Recognition runs on your Mac with [MLX](https://github.com/ml-explore/mlx) on Apple Silicon. The recognition server only listens on `127.0.0.1`, and audio is never uploaded.
 - **Pick your model.** Whisper, Parakeet and Qwen3-ASR, downloaded in one click and ranked for the language you speak.
 - **Your words, spelled right.** A plain-text dictionary teaches it product names and jargon (`GitHub`, `kubectl`, `PostgreSQL`) and fixes words it keeps mishearing.
@@ -39,9 +39,10 @@ The app runs from your clone: it uses `.venv`, `server/` and `models.json` from 
 
 | | |
 |---|---|
-| Hold the key | Starts recording: a live level meter and timer appear at the bottom of the screen |
+| Hold the key | Records while held: a live level meter and timer appear at the bottom of the screen |
 | Release | Transcribes and pastes the text, followed by a space |
-| Quick tap (< 0.3 s), or the key used in a shortcut (⌥→) | Ignored |
+| Tap the key | Records hands-free until you tap again or click ■ on the pill |
+| ✕ on the pill, or the key used in a shortcut while held (⌥→) | Cancels: nothing is pasted |
 | Menu bar icon | Status, microphone, dictionary, Settings (⌘,), logs |
 
 The text goes wherever the cursor is when it's ready, so you can switch windows while you talk. If there's no text field there (you clicked on a list or the desktop), it's in a password field, or Accessibility access is missing, the text stays on the clipboard so you can paste it with ⌘V yourself. The menu also has **Copy Last Dictation**.
@@ -49,7 +50,8 @@ The text goes wherever the cursor is when it's ready, so you can switch windows 
 ## Settings
 
 **General**
-- *Hold to dictate*: Right Option, Right Command, Right Control, Right Shift, or Fn/Globe.
+- *Key*: Right Option, Right Command, Right Control, Right Shift, Fn/Globe, or a key combination you record (such as ⌃⌥Space).
+- *Start and stop*: hold or tap (default), hold only, or press to start and press again to stop. A hands-free recording stops by itself after 15 minutes.
 - *Record from*: any input device. The choice only affects Local Dictation, not the system input. If the chosen device is unplugged, Local Dictation falls back to the built-in mic.
 - *Dictionary*: opens your dictionary file (see below).
 - *Keep recent recordings*: saves the last 200 dictations (audio and text) locally. It's off by default and handy for tuning the dictionary.
@@ -93,17 +95,17 @@ Whisper and Qwen use the terms as a hint while recognising. Parakeet doesn't tak
 
 ## Privacy
 
-- Audio is recorded only while you hold the key, and it's sent only to the local server on `127.0.0.1`.
+- Audio is recorded only while the pill is on screen, and it's sent only to the local server on `127.0.0.1`.
 - The server runs offline (`HF_HUB_OFFLINE=1`). The network is used only when you download a model from Settings.
 - History is off by default. When it's on, files stay in `~/Library/Application Support/Local Dictation/history/`.
 
 ## Troubleshooting
 
-- **Nothing happens when I hold the key.** Check Accessibility access (the menu shows a warning while it's missing). If you rebuilt the app and it stopped working, turn Local Dictation off and on again in the Accessibility list.
+- **Nothing happens when I press the key.** Check Accessibility access (the menu shows a warning while it's missing). If you rebuilt the app and it stopped working, turn Local Dictation off and on again in the Accessibility list.
 - **“No model”**: download one in Settings → Models.
 - **Fn key opens the emoji picker**: set System Settings → Keyboard → “Press 🌐 key to” → “Do Nothing”.
 - **Logs**: menu → Show Logs (`~/Library/Logs/Local Dictation/`): `app.log` (keys, mic, pastes), `server.log` (recognition), `downloads.log`.
-- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic` (or `--probe-hud` to watch the level meter for 4 s), then look in `app.log`. `--probe-focus` logs what has keyboard focus, and `--probe-deliver "text"` pastes a test text the way a dictation would. Start these with `open -n "$HOME/Applications/Local Dictation.app" --args …` so they run with the app's Accessibility access.
+- **Check the mic without dictating**: `"$HOME/Applications/Local Dictation.app/Contents/MacOS/LocalDictation" --probe-mic` (or `--probe-hud` to watch the level meter for 4 s), then look in `app.log`. `--probe-focus` logs what has keyboard focus, `--probe-deliver "text"` pastes a test text the way a dictation would, and `--probe-keys "d 0.1 u 3 d 0.1 u"` presses (d) and releases (u) the hotkey to test hold and tap. Start these with `open -n "$HOME/Applications/Local Dictation.app" --args …` so they run with the app's Accessibility access.
 - **See any UI state without triggering it**: the same binary with `--demo <state>`. The states are `recording`, `transcribing`, `noModel`, `copied`, `micFailed`, `menu-noax` and others; [`app/Demo.swift`](app/Demo.swift) has the full list.
 
 ## How it works

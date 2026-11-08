@@ -51,6 +51,8 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
 
 struct GeneralView: View {
     @AppStorage("hotkey") private var hotkey: Hotkey = .rightOption
+    @AppStorage("mode") private var mode: ActivationMode = .holdOrTap
+    @AppStorage("combo_taken") private var comboTaken = false
     @AppStorage(inputPrefKey) private var input = "builtin"
     @AppStorage("save_history") private var saveHistory = false
     @State private var devices = inputDevices()
@@ -59,11 +61,21 @@ struct GeneralView: View {
     @State private var loginOn = SMAppService.mainApp.status == .enabled
     private let tick = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
+    private var shortcutHelp: String {
+        let how = switch mode {
+        case .holdOrTap: "Hold the key while you speak and release it, or tap it once, speak, and tap again."
+        case .hold: "Hold the key while you speak and release it. A quick tap does nothing."
+        case .toggle: "Press once to start, speak, and press again to stop."
+        }
+        let fn = hotkey == .fn ? " Set System Settings → Keyboard → “Press 🌐 key to” → “Do Nothing”, or macOS reacts to Fn too." : ""
+        return how + " The pill at the bottom of the screen has Stop and Cancel buttons too." + fn
+    }
+
     var body: some View {
         Form {
             if !micOK || !axOK {
                 Section {
-                    permissionRow("Microphone", ok: micOK, why: "to hear you while the key is held") {
+                    permissionRow("Microphone", ok: micOK, why: "to hear you while you dictate") {
                         if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
                             AVCaptureDevice.requestAccess(for: .audio) { _ in }
                         } else { openPrivacyPane("Privacy_Microphone") }
@@ -75,13 +87,22 @@ struct GeneralView: View {
             }
 
             Section {
-                Picker("Hold to dictate", selection: $hotkey) {
-                    ForEach(Hotkey.allCases) { Text($0.title).tag($0) }
+                Picker("Key", selection: $hotkey) {
+                    ForEach(Hotkey.allCases.filter { $0 != .combo }) { Text($0.title).tag($0) }
+                    Divider()
+                    Text(Hotkey.combo.title).tag(Hotkey.combo)
                 }
-                Text(hotkey == .fn
-                     ? "Hold Fn, speak, release. Set System Settings → Keyboard → “Press 🌐 key to” → “Do Nothing”, or macOS reacts to it too."
-                     : "Hold the key, speak, release: the text is pasted where the cursor is. A quick tap, or using the key in a shortcut, does nothing.")
-                    .font(.callout).foregroundStyle(.secondary)
+                if hotkey == .combo {
+                    LabeledContent("Combination") { ShortcutRecorder() }
+                    if comboTaken {
+                        Text("Another app already uses this combination. Pick a different one.")
+                            .font(.callout).foregroundStyle(.orange)
+                    }
+                }
+                Picker("Start and stop", selection: $mode) {
+                    ForEach(ActivationMode.allCases) { Text($0.title).tag($0) }
+                }
+                Text(shortcutHelp).font(.callout).foregroundStyle(.secondary)
             } header: { Text("Shortcut") }
 
             Section {
@@ -288,5 +309,41 @@ struct Badge: View {
             .padding(.horizontal, 6).padding(.vertical, 1)
             .background(color.opacity(0.15), in: Capsule())
             .foregroundStyle(color)
+    }
+}
+
+/// Click, then press the new combination. Esc cancels. The old one is paused meanwhile.
+struct ShortcutRecorder: View {
+    @State private var combo = Combo.saved
+    @State private var listening = false
+    @State private var warning = ""
+    @State private var monitor: Any?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if !warning.isEmpty { Text(warning).font(.callout).foregroundStyle(.orange) }
+            Button(listening ? "Press keys…" : combo.display) { listening ? stop() : start() }
+                .frame(minWidth: 110)
+        }
+        .onDisappear(perform: stop)
+    }
+
+    private func start() {
+        listening = true; warning = ""
+        ComboHotkey.shared.paused = true
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            if e.keyCode == 53 { stop(); return nil }  // Esc
+            guard let c = Combo(event: e) else { warning = "Add ⌘, ⌃ or ⌥"; return nil }
+            c.save(); combo = c
+            stop()
+            return nil
+        }
+    }
+
+    private func stop() {
+        listening = false
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+        ComboHotkey.shared.paused = false
     }
 }

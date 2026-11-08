@@ -116,8 +116,28 @@ final class LevelView: NSView {
     }
 }
 
+/// A button that works on the first click even though the HUD panel never becomes key.
+final class HUDButton: NSButton {
+    var action_: () -> Void = {}
+    convenience init(symbol: String, tint: NSColor, tip: String) {
+        self.init(frame: .zero)
+        isBordered = false
+        image = NSImage(systemSymbolName: symbol, accessibilityDescription: tip)?
+            .withSymbolConfiguration(.init(pointSize: 17, weight: .semibold))
+        contentTintColor = tint
+        toolTip = tip
+        target = self; action = #selector(fire)
+    }
+    @objc private func fire() { action_() }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 final class HUD {
+    var onStop: () -> Void = {}
+    var onCancel: () -> Void = {}
     private let panel: NSPanel
+    private let cancelButton = HUDButton(symbol: "xmark.circle.fill", tint: .tertiaryLabelColor, tip: "Cancel: throw this recording away")
+    private let stopButton = HUDButton(symbol: "stop.circle.fill", tint: .systemRed, tip: "Stop and paste")
     private let label = NSTextField(labelWithString: "")
     private let icon = NSImageView()
     private let spinner = NSProgressIndicator()
@@ -143,7 +163,9 @@ final class HUD {
         clock.font = .monospacedDigitSystemFont(ofSize: 13, weight: .medium)
         clock.textColor = .secondaryLabelColor
         clock.alignment = .right
-        [label, icon, spinner, meter, clock].forEach(bg.addSubview)
+        cancelButton.action_ = { [weak self] in self?.onCancel() }
+        stopButton.action_ = { [weak self] in self?.onStop() }
+        [label, icon, spinner, meter, clock, cancelButton, stopButton].forEach(bg.addSubview)
         panel.contentView = bg
     }
 
@@ -158,6 +180,8 @@ final class HUD {
     func show(_ text: String, symbol: String? = nil, tint: NSColor = .secondaryLabelColor, busy: Bool = false) {
         stopMeter()
         meter.isHidden = true; clock.isHidden = true; label.isHidden = false
+        cancelButton.isHidden = true; stopButton.isHidden = true
+        panel.ignoresMouseEvents = true  // a notice never blocks clicks on what's under it
         icon.isHidden = symbol == nil || busy
         spinner.isHidden = !busy
         busy ? spinner.startAnimation(nil) : spinner.stopAnimation(nil)
@@ -182,12 +206,17 @@ final class HUD {
         stopMeter()
         label.isHidden = true; icon.isHidden = true; spinner.isHidden = true; spinner.stopAnimation(nil)
         meter.isHidden = false; clock.isHidden = false
+        cancelButton.isHidden = false; stopButton.isHidden = false
+        panel.ignoresMouseEvents = false  // Cancel and Stop take clicks; the panel still never takes focus
         meter.reset()
+        // [x] bars 0:00 [stop]
         let barsW = CGFloat(LevelView.bars) * 5 - 2
-        meter.frame = NSRect(x: 18, y: 8, width: barsW, height: 18)
-        clock.frame = NSRect(x: 18 + barsW + 8, y: 8, width: 42, height: 18)
+        cancelButton.frame = NSRect(x: 7, y: 5, width: 24, height: 24)
+        meter.frame = NSRect(x: 36, y: 8, width: barsW, height: 18)
+        clock.frame = NSRect(x: 36 + barsW + 6, y: 8, width: 38, height: 18)
+        stopButton.frame = NSRect(x: 36 + barsW + 6 + 38 + 4, y: 5, width: 24, height: 24)
         clock.stringValue = "0:00"
-        place(width: 18 + barsW + 8 + 42 + 16)
+        place(width: stopButton.frame.maxX + 6)
         let start = Date()
         tick = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self else { return }

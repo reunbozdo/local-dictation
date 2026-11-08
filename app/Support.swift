@@ -28,58 +28,13 @@ func prepareSupportFiles() {
     }
 }
 
-// MARK: - Hotkey: a modifier key held on its own
-
-enum Hotkey: String, CaseIterable, Identifiable {
-    case rightOption = "right_option", rightCommand = "right_command", rightControl = "right_control",
-         rightShift = "right_shift", fn
-
-    var id: String { rawValue }
-    var keyCode: UInt16 {
-        switch self {
-        case .rightOption: 61
-        case .rightCommand: 54
-        case .rightControl: 62
-        case .rightShift: 60
-        case .fn: 63
-        }
-    }
-    /// Device-dependent modifier bit: tells the right key from the left one. Fn has only one key.
-    var mask: UInt {
-        switch self {
-        case .rightOption: 0x40
-        case .rightCommand: 0x10
-        case .rightControl: 0x2000
-        case .rightShift: 0x4
-        case .fn: NSEvent.ModifierFlags.function.rawValue
-        }
-    }
-    var title: String {
-        switch self {
-        case .rightOption: "Right Option ⌥"
-        case .rightCommand: "Right Command ⌘"
-        case .rightControl: "Right Control ⌃"
-        case .rightShift: "Right Shift ⇧"
-        case .fn: "Fn / Globe 🌐"
-        }
-    }
-    var short: String {
-        switch self {
-        case .rightOption: "right ⌥"
-        case .rightCommand: "right ⌘"
-        case .rightControl: "right ⌃"
-        case .rightShift: "right ⇧"
-        case .fn: "Fn"
-        }
-    }
-}
-
 // MARK: - Preferences (UserDefaults: the single source of truth; the server gets them per launch/request)
 
 enum Pref {
     static let d = UserDefaults.standard
     static let defaultModel = "whisper-large-v3-turbo"
     static var hotkey: Hotkey { Hotkey(rawValue: d.string(forKey: "hotkey") ?? "") ?? .rightOption }
+    static var mode: ActivationMode { ActivationMode(rawValue: d.string(forKey: "mode") ?? "") ?? .holdOrTap }
     static var language: String { d.string(forKey: "language") ?? defaultLanguage }
     static let defaultLanguage = "en"
     static var model: String {

@@ -1,5 +1,5 @@
-// Local Dictation: menu bar app. Hold the hotkey -> record the mic; release -> the local speech-to-text server
-// transcribes -> the text is pasted into the focused field (clipboard + Cmd+V, clipboard restored).
+// Local Dictation: menu bar app. Hold (or tap) the hotkey -> record the mic; release (or tap again) -> the local
+// speech-to-text server transcribes -> the text is pasted into the focused field (clipboard + Cmd+V).
 // Audio never leaves the machine: the server listens on 127.0.0.1 only.
 import AVFoundation
 import Cocoa
@@ -21,6 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var recording = false
     var cancelled = false
     var pressedAt = Date()
+    var handsFree = false  // the key was tapped: keep recording until the next press or the Stop button
+    var swallowRelease = false  // the press that stopped a hands-free recording: ignore its release
+    var portRetries = 0  // server restarts because the port was still taken
+    var session = 0  // counts recordings, so a delayed auto-stop can't end a newer one
     var busy = 0
     var lastText: String?  // last dictation, kept so a paste that went nowhere can be recovered
     var quitting = false
@@ -50,6 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             log("probe-focus: \(f) \(desc), app \(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?")")
             exit(0)
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--probe-keys") {
+            probeKeys(CommandLine.arguments.dropFirst(i + 1).first ?? "d 0.1 u"); exit(0)
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--probe-deliver") {  // paste a test text into the focused app
             deliver(CommandLine.arguments.dropFirst(i + 1).first ?? "Local Dictation test")
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) { exit(0) }  // let the clipboard restore and HUD run
@@ -67,6 +74,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let trusted = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
         log("accessibility trusted: \(trusted)")
         installMonitors()
+        ComboHotkey.shared.onPress = { [weak self] in self?.keyPressed() }
+        ComboHotkey.shared.onRelease = { [weak self] in self?.keyReleased() }
+        applyHotkey()
+        // Settings writes UserDefaults; pick up a new key combination right away.
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.applyHotkey()
+        }
+        hud.onStop = { [weak self] in self?.stopFromHUD(cancel: false) }
+        hud.onCancel = { [weak self] in self?.stopFromHUD(cancel: true) }
         if !trusted { watchTrust() }
         if !models.activeInstalled { SettingsWindow.shared.show(.models) }  // first run: pick a model
     }
@@ -127,14 +143,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let hotkey = Pref.hotkey  // read live: a change in Settings applies to the next press
         if e.type == .keyDown {
             // Another key while the hotkey is held = a shortcut (e.g. Option+arrow), not dictation.
-            if hotkeyDown && recording { cancelled = true; log("cancelled by key \(e.keyCode)") }
+            if hotkeyDown && recording && !handsFree { cancelled = true; log("cancelled by key \(e.keyCode)") }
             return
         }
         guard e.keyCode == hotkey.keyCode else { return }
         let down = (e.modifierFlags.rawValue & hotkey.mask) != 0
         if down == hotkeyDown { return }
         hotkeyDown = down
-        down ? begin() : end()
+        down ? keyPressed() : keyReleased()
+    }
+
+    func applyHotkey() {
+        let ok = ComboHotkey.shared.set(Pref.hotkey == .combo ? Combo.saved : nil)
+        // Settings shows a warning. Write only on change: every write re-triggers this observer.
+        if UserDefaults.standard.bool(forKey: "combo_taken") != !ok { UserDefaults.standard.set(!ok, forKey: "combo_taken") }
+    }
+
+    // One state machine for both kinds of hotkey. Hold: release stops. Tap (or toggle mode): the
+    // recording goes on hands-free until the next press, which stops it.
+    func keyPressed() {
+        if recording && handsFree { swallowRelease = true; end(); return }
+        begin()
+    }
+
+    func keyReleased() {
+        if swallowRelease { swallowRelease = false; return }
+        guard recording, !handsFree else { return }
+        let tapped = Date().timeIntervalSince(pressedAt) < 0.35
+        switch Pref.mode {
+        case .hold: end()
+        case .toggle: handsFree = !cancelled
+        case .holdOrTap: tapped && !cancelled ? (handsFree = true) : end()
+        }
+        if handsFree { log("hands-free recording") }
+        if cancelled && recording { end() }
+    }
+
+    func stopFromHUD(cancel: Bool) {
+        guard recording else { return }
+        if cancel { cancelled = true; log("cancelled from the HUD") }
+        if hotkeyDown { swallowRelease = true }  // the key is still held: its release is not a new command
+        end()
     }
 
     // Audio start/stop never run on the main thread: if CoreAudio stalls, the menu and HUD stay alive.
@@ -161,8 +210,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         cancelled = false
+        handsFree = false
         pressedAt = Date()
         recording = true
+        session += 1
+        let mine = session
+        // Hands-free can't run forever if the user walks away: stop and transcribe after 15 min.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15 * 60) { [weak self] in
+            guard let self, self.recording, self.session == mine else { return }
+            log("auto-stop after 15 min"); self.end()
+        }
         setIcon("mic.fill", "Recording…", tint: .systemRed)
         hud.showRecording { [recorder] in recorder.level }
         let started = onAudio({ () -> (note: String?, error: Error?) in
@@ -203,9 +260,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func end() {
         guard recording else { return }
         recording = false
-        let held = Date().timeIntervalSince(pressedAt)
+        // A short tap in hold-only mode is a slip, not a dictation.
+        let slip = Pref.mode == .hold && Date().timeIntervalSince(pressedAt) < 0.3
+        handsFree = false
         _ = onAudio({ self.recorder.stop() }) { samples in
-            if self.cancelled || held < 0.3 || samples.count < 16000 / 4 {
+            if self.cancelled || slip || samples.count < 16000 / 4 {
                 self.setIdle(); return
             }
             self.transcribe(samples)
@@ -297,8 +356,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async {
                 guard let self, !self.quitting, self.server === proc else { return }
                 self.ready = nil
-                if proc.terminationStatus == 3 {  // port taken by another program: restarting won't help
-                    self.setIcon("exclamationmark.triangle", "Port \(port) is used by another program"); return
+                if proc.terminationStatus == 3 {
+                    // Port taken. Usually the server of a Local Dictation that just quit, which
+                    // exits within ~2 s; if it's still taken after that, it's another program.
+                    self.portRetries += 1
+                    if self.portRetries > 5 {
+                        self.setIcon("exclamationmark.triangle", "Port \(port) is used by another program"); return
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if self.server === proc { self.startServer() } }
+                    return
                 }
                 self.setIcon("exclamationmark.triangle", "Recognition crashed, restarting…")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { if self.server === proc { self.startServer() } }
@@ -313,7 +379,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let obj = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
             DispatchQueue.main.async {
                 guard self.server === proc else { return }  // replaced by a restart meanwhile
-                if obj?["model"] != nil {
+                // Only our own server counts: an old one may still answer on the port for a moment.
+                if obj?["model"] != nil, (obj?["pid"] as? Int).map({ $0 == Int(proc.processIdentifier) }) ?? false {
+                    self.portRetries = 0
                     self.ready = "Ready · \(name)"
                     log("server ready: \(name)")
                     if !self.recording && self.busy == 0 { self.setIdle() }
@@ -372,7 +440,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         axItem.isHidden = axTrusted
         modelItem.isHidden = models.activeInstalled && !demoNoModel
         lastItem.isEnabled = lastText != nil
-        hintLine.title = "Hold \(Pref.hotkey.short) and speak"
+        hintLine.title = Pref.mode.hint(Pref.hotkey.short)
         let pref = inputPref, pick = resolveInput(pref)
         micItem.title = "Microphone: \(pick.device?.name ?? systemInputName())" + (pick.fallback ? " (fallback)" : "")
         let sub = micItem.submenu!

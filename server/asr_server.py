@@ -6,7 +6,7 @@ The app starts it with the model picked in Settings and restarts it when the mod
 POST /transcribe  body: 16 kHz mono 16-bit WAV
                   headers: X-Language (ISO code or "auto"), X-History-Dir (optional: save wav + text there)
                   -> {"text", "raw", "sec", "audio_sec"}
-GET  /health      -> {"model": repo} once the model is loaded and warmed up
+GET  /health      -> {"model": repo, "pid": pid} once the model is loaded and warmed up
 """
 import argparse, io, json, os, re, sys, threading, time, wave
 from concurrent.futures import ThreadPoolExecutor
@@ -116,7 +116,7 @@ def make_handler(engine, terms, repo):
 
         def do_GET(self):
             if self.path == "/health":
-                return self._json(200, dict(model=repo))
+                return self._json(200, dict(model=repo, pid=os.getpid()))  # pid: the app checks it is its own server
             self._json(404, {})
 
         def do_POST(self):

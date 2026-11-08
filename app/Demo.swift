@@ -2,6 +2,7 @@
 // Records nothing, pastes nothing, starts no server.
 // States: recording, transcribing, any Notice case (noModel, copied, …), menu-ready, menu-loading,
 // menu-nomodel, menu-noax, settings-general, settings-models.
+import Carbon
 import Cocoa
 
 extension AppDelegate {
@@ -32,5 +33,50 @@ extension AppDelegate {
 
     private func openMenu() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.status.button?.performClick(nil) }
+    }
+}
+
+// `--probe-keys "d 0.1 u 3 d 0.1 u"`: press (d) and release (u) the chosen hotkey with pauses in
+// seconds, or click the HUD's "stop" / "cancel" button, as synthetic key events. The running app sees them like real presses: a test of the
+// hold / tap / toggle logic without a human at the keyboard.
+func probeKeys(_ script: String) {
+    let src = CGEventSource(stateID: .hidSystemState)
+    let key = Pref.hotkey
+    for step in script.split(separator: " ") {
+        if let s = Double(step) { Thread.sleep(forTimeInterval: s); continue }
+        if step == "stop" || step == "cancel" {  // click a HUD button (geometry as in HUD.showRecording)
+            guard let vis = NSScreen.main?.visibleFrame, let full = NSScreen.screens.first?.frame else { continue }
+            let width: CGFloat = 202
+            let x = vis.midX - width / 2 + (step == "stop" ? 184 : 19)
+            let p = CGPoint(x: x, y: full.height - (vis.minY + 60 + 17))
+            for t in [CGEventType.leftMouseDown, .leftMouseUp] {
+                CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+            }
+            log("probe-keys: click \(step)"); continue
+        }
+        let down = step == "d"
+        let e: CGEvent?
+        if key == .combo {
+            let c = Combo.saved
+            e = CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(c.keyCode), keyDown: down)
+            var f: CGEventFlags = []
+            if c.mods & UInt32(cmdKey) != 0 { f.insert(.maskCommand) }
+            if c.mods & UInt32(optionKey) != 0 { f.insert(.maskAlternate) }
+            if c.mods & UInt32(controlKey) != 0 { f.insert(.maskControl) }
+            if c.mods & UInt32(shiftKey) != 0 { f.insert(.maskShift) }
+            e?.flags = f
+        } else {
+            e = CGEvent(keyboardEventSource: src, virtualKey: key.keyCode, keyDown: down)
+            let generic: CGEventFlags = switch key {
+            case .rightOption: .maskAlternate
+            case .rightCommand: .maskCommand
+            case .rightControl: .maskControl
+            case .rightShift: .maskShift
+            default: .maskSecondaryFn
+            }
+            e?.flags = down ? CGEventFlags(rawValue: generic.rawValue | UInt64(key.mask)) : []
+        }
+        e?.post(tap: .cghidEventTap)
+        log("probe-keys: \(step)")
     }
 }
